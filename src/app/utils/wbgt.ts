@@ -160,28 +160,28 @@ export function getWorkRestCycle(
 } {
   const effectiveWBGT = wbgt + clothingAdjustment + workloadAdjustment;
 
-  if (effectiveWBGT < 78) {
+  if (effectiveWBGT < 80) {
     return {
       workMinutes: 60,
       restMinutes: 0,
       category: "Normal",
       color: "green",
     };
-  } else if (effectiveWBGT < 82) {
+  } else if (effectiveWBGT < 85) {
     return {
       workMinutes: 45,
       restMinutes: 15,
       category: "Light Caution",
       color: "yellow",
     };
-  } else if (effectiveWBGT < 85) {
+  } else if (effectiveWBGT < 88) {
     return {
       workMinutes: 30,
       restMinutes: 30,
       category: "Moderate Caution",
       color: "orange",
     };
-  } else if (effectiveWBGT < 88) {
+  } else if (effectiveWBGT < 90) {
     return {
       workMinutes: 20,
       restMinutes: 40,
@@ -190,8 +190,8 @@ export function getWorkRestCycle(
     };
   } else {
     return {
-      workMinutes: 10,
-      restMinutes: 50,
+      workMinutes: 15,
+      restMinutes: 45,
       category: "Extreme Caution",
       color: "red",
     };
@@ -237,7 +237,7 @@ export async function getMockWeatherData(location: string): Promise<{
 
 // Clothing adjustment factors (in °F)
 export const CLOTHING_ADJUSTMENTS = {
-  "Light Clothing": -3.5,
+  "Light Clothing": -3.6,
   "Work Clothing (Baseline)": 0,
   "Cloth coveralls": 0,
   "Spunbond melt-blown synthetic (SMS) coveralls": 0.9,
@@ -253,8 +253,8 @@ export type ClothingType = keyof typeof CLOTHING_ADJUSTMENTS;
 export const WORKLOAD_ADJUSTMENTS = {
   Light: 0,
   Moderate: 0,
-  Heavy: 6.5,
-  "Very Heavy": 9.5,
+  Heavy: 3.6,
+  "Very Heavy": 5.4,
 } as const;
 
 export type WorkloadType = keyof typeof WORKLOAD_ADJUSTMENTS;

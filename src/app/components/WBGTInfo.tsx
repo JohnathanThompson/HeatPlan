@@ -126,7 +126,7 @@ export function WBGTInfo() {
                   style={[styles.cycleItem, { backgroundColor: "#dcfce7" }]}
                 >
                   <Text style={[styles.cycleLabel, { color: "#166534" }]}>
-                    Below 78°F
+                    Below 80°F
                   </Text>
                   <Text style={[styles.cycleValue, { color: "#166534" }]}>
                     Normal work
@@ -136,7 +136,7 @@ export function WBGTInfo() {
                   style={[styles.cycleItem, { backgroundColor: "#fef3c7" }]}
                 >
                   <Text style={[styles.cycleLabel, { color: "#92400e" }]}>
-                    78-81.9°F
+                    80-84.9°F
                   </Text>
                   <Text style={[styles.cycleValue, { color: "#92400e" }]}>
                     45/15 min
@@ -146,7 +146,7 @@ export function WBGTInfo() {
                   style={[styles.cycleItem, { backgroundColor: "#fed7aa" }]}
                 >
                   <Text style={[styles.cycleLabel, { color: "#92400e" }]}>
-                    82-84.9°F
+                    85-87.9°F
                   </Text>
                   <Text style={[styles.cycleValue, { color: "#92400e" }]}>
                     30/30 min
@@ -156,7 +156,7 @@ export function WBGTInfo() {
                   style={[styles.cycleItem, { backgroundColor: "#fee2e2" }]}
                 >
                   <Text style={[styles.cycleLabel, { color: "#7f1d1d" }]}>
-                    85-87.9°F
+                    88-89.9°F
                   </Text>
                   <Text style={[styles.cycleValue, { color: "#7f1d1d" }]}>
                     20/40 min
@@ -166,10 +166,10 @@ export function WBGTInfo() {
                   style={[styles.cycleItem, { backgroundColor: "#fecaca" }]}
                 >
                   <Text style={[styles.cycleLabel, { color: "#7f1d1d" }]}>
-                    88°F+
+                    90°F+
                   </Text>
                   <Text style={[styles.cycleValue, { color: "#7f1d1d" }]}>
-                    10/50 min
+                    15/45 min
                   </Text>
                 </View>
               </View>
