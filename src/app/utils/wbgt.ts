@@ -98,7 +98,7 @@ function normalizeLocationKey(location: string): string {
 
 function resolveLocationData(location: string) {
   const normalized = normalizeLocationKey(location);
-  if (normalized === "marquette,mi" || normalized === "marquette") {
+  if (normalized === "milwaukee,wi" || normalized === "milwaukee") {
     return mockWeatherData.milwaukee;
   }
   const cityOnly = normalized.split(",")[0];
