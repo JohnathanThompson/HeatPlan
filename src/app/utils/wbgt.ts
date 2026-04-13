@@ -1,21 +1,91 @@
 // Mock weather data for different cities with varying WBGT profiles
 const mockWeatherData: Record<
   string,
-  { temp: number; humidity: number; city: string; lat?: number; lon?: number }
+  {
+    temp: number;
+    humidity: number;
+    cloudCover: number;
+    windSpeed: number;
+    city: string;
+    lat?: number;
+    lon?: number;
+  }
 > = {
-  phoenix: { temp: 98, humidity: 25, city: "Phoenix, AZ" },
-  miami: { temp: 90, humidity: 78, city: "Miami, FL" },
-  houston: { temp: 93, humidity: 68, city: "Houston, TX" },
-  lasvegas: { temp: 102, humidity: 20, city: "Las Vegas, NV" },
-  atlanta: { temp: 88, humidity: 62, city: "Atlanta, GA" },
-  newyork: { temp: 84, humidity: 58, city: "New York, NY" },
-  chicago: { temp: 80, humidity: 52, city: "Chicago, IL" },
-  seattle: { temp: 75, humidity: 48, city: "Seattle, WA" },
-  losangeles: { temp: 85, humidity: 55, city: "Los Angeles, CA" },
-  dallas: { temp: 96, humidity: 58, city: "Dallas, TX" },
+  phoenix: {
+    temp: 98,
+    humidity: 25,
+    cloudCover: 10,
+    windSpeed: 3,
+    city: "Phoenix, AZ",
+  },
+  miami: {
+    temp: 90,
+    humidity: 78,
+    cloudCover: 65,
+    windSpeed: 4,
+    city: "Miami, FL",
+  },
+  houston: {
+    temp: 93,
+    humidity: 68,
+    cloudCover: 50,
+    windSpeed: 3,
+    city: "Houston, TX",
+  },
+  lasvegas: {
+    temp: 102,
+    humidity: 20,
+    cloudCover: 5,
+    windSpeed: 4,
+    city: "Las Vegas, NV",
+  },
+  atlanta: {
+    temp: 88,
+    humidity: 62,
+    cloudCover: 40,
+    windSpeed: 3,
+    city: "Atlanta, GA",
+  },
+  newyork: {
+    temp: 84,
+    humidity: 58,
+    cloudCover: 50,
+    windSpeed: 5,
+    city: "New York, NY",
+  },
+  chicago: {
+    temp: 80,
+    humidity: 52,
+    cloudCover: 45,
+    windSpeed: 8,
+    city: "Chicago, IL",
+  },
+  seattle: {
+    temp: 75,
+    humidity: 48,
+    cloudCover: 80,
+    windSpeed: 6,
+    city: "Seattle, WA",
+  },
+  losangeles: {
+    temp: 85,
+    humidity: 55,
+    cloudCover: 20,
+    windSpeed: 5,
+    city: "Los Angeles, CA",
+  },
+  dallas: {
+    temp: 96,
+    humidity: 58,
+    cloudCover: 35,
+    windSpeed: 4,
+    city: "Dallas, TX",
+  },
   milwaukee: {
     temp: 75,
     humidity: 60,
+    cloudCover: 60,
+    windSpeed: 6,
     city: "Milwaukee, WI",
     lat: 43.038902,
     lon: -87.906471,
@@ -203,6 +273,8 @@ export async function getMockWeatherData(location: string): Promise<{
   humidity: number;
   wbgt: number;
   city: string;
+  cloudCover: number;
+  windSpeed: number;
 }> {
   const locationKey = location.toLowerCase().replace(/\s+/g, "");
 
@@ -215,6 +287,8 @@ export async function getMockWeatherData(location: string): Promise<{
         humidity: realData.humidity,
         wbgt: realData.wbgt,
         city: "Milwaukee, WI",
+        cloudCover: realData.cloudCover,
+        windSpeed: realData.windSpeed,
       };
     }
     // Fallback to mock data if API fails
@@ -223,15 +297,24 @@ export async function getMockWeatherData(location: string): Promise<{
   // Use mock data for all other locations
   const data = mockWeatherData[locationKey] || mockWeatherData.phoenix;
 
-  // Get current hour's WBGT for this location
-  const currentHour = new Date().getHours();
-  const wbgt = getLocationWBGTPattern(location, currentHour);
+  const wbgt = Math.round(
+    celsiusToFahrenheit(
+      wbgtOutdoor(
+        fahrenheitToCelsius(data.temp),
+        data.humidity,
+        data.cloudCover,
+        data.windSpeed,
+      ),
+    ),
+  );
 
   return {
     temp: data.temp,
     humidity: data.humidity,
     wbgt,
     city: data.city,
+    cloudCover: data.cloudCover,
+    windSpeed: data.windSpeed,
   };
 }
 
@@ -413,11 +496,18 @@ function celsiusToFahrenheit(celsius: number): number {
   return (celsius * 9) / 5 + 32;
 }
 
+// Convert Fahrenheit to Celsius
+function fahrenheitToCelsius(fahrenheit: number): number {
+  return ((fahrenheit - 32) * 5) / 9;
+}
+
 // Fetch real weather data for Milwaukee
 async function fetchMilwaukeeWeather(): Promise<{
   temp: number;
   humidity: number;
   wbgt: number;
+  cloudCover: number;
+  windSpeed: number;
   hourlyWbgt: number[];
 } | null> {
   try {
@@ -499,6 +589,8 @@ async function fetchMilwaukeeWeather(): Promise<{
       temp: Math.round(celsiusToFahrenheit(temperatureCelsius)),
       humidity: Math.round(relativeHumidity),
       wbgt: Math.round(celsiusToFahrenheit(wbgt)),
+      cloudCover,
+      windSpeed,
       hourlyWbgt,
     };
   } catch (error) {
@@ -705,17 +797,17 @@ function formatHour(hour: number): string {
 }
 
 export function getWBGTColor(wbgt: number): string {
-  if (wbgt < 78) return "#22c55e"; // green
-  if (wbgt < 82) return "#eab308"; // yellow
-  if (wbgt < 85) return "#f97316"; // orange
-  if (wbgt < 88) return "#ef4444"; // red
+  if (wbgt < 80) return "#22c55e"; // green
+  if (wbgt < 85) return "#eab308"; // yellow
+  if (wbgt < 88) return "#f97316"; // orange
+  if (wbgt < 90) return "#ef4444"; // red
   return "#dc2626"; // dark red
 }
 
 export function getWBGTBackgroundColor(wbgt: number): string {
-  if (wbgt < 78) return "#dcfce7"; // green-100
-  if (wbgt < 82) return "#fef9c3"; // yellow-100
-  if (wbgt < 85) return "#ffedd5"; // orange-100
-  if (wbgt < 88) return "#fee2e2"; // red-100
+  if (wbgt < 80) return "#dcfce7"; // green-100
+  if (wbgt < 85) return "#fef9c3"; // yellow-100
+  if (wbgt < 88) return "#ffedd5"; // orange-100
+  if (wbgt < 90) return "#fee2e2"; // red-100
   return "#fecaca"; // red-200
 }
