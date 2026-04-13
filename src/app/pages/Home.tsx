@@ -310,8 +310,12 @@ export function Home({ navigation }: { navigation: any }) {
           setWorkRestCycle(
             getWorkRestCycle(
               todayWeather.wbgt,
-              CLOTHING_ADJUSTMENTS[todayData.clothing] || 0,
-              WORKLOAD_ADJUSTMENTS[todayData.workload] || 0,
+              CLOTHING_ADJUSTMENTS[
+                todayData.clothing as keyof typeof CLOTHING_ADJUSTMENTS
+              ] || 0,
+              WORKLOAD_ADJUSTMENTS[
+                todayData.workload as keyof typeof WORKLOAD_ADJUSTMENTS
+              ] || 0,
             ),
           );
           const forecastData = await generateForecast(

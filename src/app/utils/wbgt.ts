@@ -92,11 +92,31 @@ const mockWeatherData: Record<
   },
 };
 
+function normalizeLocationKey(location: string): string {
+  return location.toLowerCase().replace(/\s+/g, "").trim();
+}
+
+function resolveLocationData(location: string) {
+  const normalized = normalizeLocationKey(location);
+  if (normalized === "marquette,mi" || normalized === "marquette") {
+    return mockWeatherData.milwaukee;
+  }
+  const cityOnly = normalized.split(",")[0];
+  const compact = normalized.replace(/[^a-z]/g, "");
+
+  return (
+    mockWeatherData[normalized] ||
+    mockWeatherData[cityOnly] ||
+    mockWeatherData[compact] ||
+    mockWeatherData.phoenix
+  );
+}
+
 // Get location-specific WBGT pattern for different hours of the day
 // This simulates how heat conditions change throughout the day
 function getLocationWBGTPattern(location: string, hour: number): number {
-  const locationKey = location.toLowerCase().replace(/\s+/g, "");
-  const baseData = mockWeatherData[locationKey] || mockWeatherData.phoenix;
+  const locationKey = normalizeLocationKey(location);
+  const baseData = resolveLocationData(location);
 
   // Different locations have different heat patterns
   switch (locationKey) {
@@ -276,17 +296,17 @@ export async function getMockWeatherData(location: string): Promise<{
   cloudCover: number;
   windSpeed: number;
 }> {
-  const locationKey = location.toLowerCase().replace(/\s+/g, "");
+  const locationData = resolveLocationData(location);
 
-  // Use real API data for Milwaukee
-  if (locationKey === "milwaukee,wi" || locationKey === "milwaukee") {
-    const realData = await fetchMilwaukeeWeather();
+  // Use real API data for locations with coordinates
+  if (locationData?.lat != null && locationData?.lon != null) {
+    const realData = await fetchLocationWeather(location);
     if (realData) {
       return {
         temp: realData.temp,
         humidity: realData.humidity,
         wbgt: realData.wbgt,
-        city: "Milwaukee, WI",
+        city: realData.city,
         cloudCover: realData.cloudCover,
         windSpeed: realData.windSpeed,
       };
@@ -295,7 +315,7 @@ export async function getMockWeatherData(location: string): Promise<{
   }
 
   // Use mock data for all other locations
-  const data = mockWeatherData[locationKey] || mockWeatherData.phoenix;
+  const data = resolveLocationData(location);
 
   const wbgt = Math.round(
     celsiusToFahrenheit(
@@ -466,16 +486,23 @@ function wetBulbTemperature(T: number, RH: number): number {
   );
 }
 
+function estimateSolarRadiation(cloudCover: number): number {
+  const C = cloudCover / 100;
+
+  return (1 - 0.75 * Math.pow(C, 3)) * 1000; // W/m²
+}
+
 function globeTemperature(
   T: number,
   cloudCover: number,
   windSpeed: number,
 ): number {
-  // cloudCover in %, windSpeed in m/s
-  const solarFactor = (1 - cloudCover / 100) * 8; // °C solar load
-  const windCooling = Math.sqrt(windSpeed) * 2; // convective cooling
+  const GHI = estimateSolarRadiation(cloudCover);
 
-  return T + solarFactor - windCooling;
+  const v = Math.max(windSpeed, 0.1);
+  const hc = 8.3 * Math.pow(v, 0.6);
+
+  return T + ((0.7 * GHI) / hc) * 0.01;
 }
 
 function wbgtOutdoor(
@@ -491,6 +518,22 @@ function wbgtOutdoor(
   return 0.7 * Twb + 0.2 * Tg + 0.1 * Tdb;
 }
 
+function wbgtOutdoorFromHourlyObserved(
+  T: number,
+  wetBulbT: number,
+  shortwaveRadiation: number,
+  cloudCover: number,
+  windSpeed: number,
+): number {
+  // shortwaveRadiation in W/m^2; convert to a coarse globe-temp uplift.
+  const solarLoad = (shortwaveRadiation / 1000) * 12;
+  const cloudDampening = 1 - cloudCover / 100;
+  const windCooling = Math.sqrt(Math.max(windSpeed, 0)) * 1.8;
+  const Tg = T + solarLoad * cloudDampening - windCooling;
+
+  return 0.7 * wetBulbT + 0.2 * Tg + 0.1 * T;
+}
+
 // Convert Celsius to Fahrenheit
 function celsiusToFahrenheit(celsius: number): number {
   return (celsius * 9) / 5 + 32;
@@ -501,21 +544,36 @@ function fahrenheitToCelsius(fahrenheit: number): number {
   return ((fahrenheit - 32) * 5) / 9;
 }
 
-// Fetch real weather data for Milwaukee
-async function fetchMilwaukeeWeather(): Promise<{
+function formatDateLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// Fetch real weather data for a location with coordinates
+async function fetchLocationWeather(location: string): Promise<{
   temp: number;
   humidity: number;
   wbgt: number;
   cloudCover: number;
   windSpeed: number;
   hourlyWbgt: number[];
+  city: string;
 } | null> {
   try {
+    const locationData = resolveLocationData(location);
+    if (!locationData?.lat || !locationData?.lon) {
+      return null;
+    }
+
     const params = {
-      latitude: 43.038902,
-      longitude: -87.906471,
+      latitude: locationData.lat,
+      longitude: locationData.lon,
       hourly: [
         "temperature_2m",
+        "wet_bulb_temperature_2m",
+        "shortwave_radiation",
         "relative_humidity_2m",
         "cloud_cover",
         "wind_speed_10m",
@@ -572,13 +630,15 @@ async function fetchMilwaukeeWeather(): Promise<{
     const hourlyWbgt: number[] = [];
     for (let i = 0; i < Math.min(6, hourly.temperature_2m.length); i++) {
       const hourTemp = hourly.temperature_2m[i];
-      const hourHumidity = hourly.relative_humidity_2m[i];
+      const hourWetBulb = hourly.wet_bulb_temperature_2m[i];
+      const hourShortwaveRadiation = hourly.shortwave_radiation[i];
       const hourCloudCover = hourly.cloud_cover[i];
       const hourWindSpeed = hourly.wind_speed_10m[i];
 
-      const hourWbgt = wbgtOutdoor(
+      const hourWbgt = wbgtOutdoorFromHourlyObserved(
         hourTemp,
-        hourHumidity,
+        hourWetBulb,
+        hourShortwaveRadiation,
         hourCloudCover,
         hourWindSpeed,
       );
@@ -592,13 +652,15 @@ async function fetchMilwaukeeWeather(): Promise<{
       cloudCover,
       windSpeed,
       hourlyWbgt,
+      city: locationData.city,
     };
   } catch (error) {
-    console.error("Error fetching Milwaukee weather:", error);
+    console.error("Error fetching location weather:", error);
     return null;
   }
 }
-export async function fetchMilwaukeeHourlyWeatherData(
+export async function fetchLocationHourlyWeatherData(
+  location: string,
   shiftStart: string,
   shiftEnd: string,
   date: Date = new Date(),
@@ -607,25 +669,32 @@ export async function fetchMilwaukeeHourlyWeatherData(
   wbgtByHour: Record<number, number>;
 } | null> {
   try {
+    const locationData = resolveLocationData(location);
+    if (!locationData?.lat || !locationData?.lon) {
+      return null;
+    }
+
     const [startHour] = shiftStart.split(":").map(Number);
     const [endHour] = shiftEnd.split(":").map(Number);
-    const startDate = date.toISOString().split("T")[0];
+    const startDate = formatDateLocal(date);
     const endDate = new Date(date);
 
     if (endHour <= startHour) {
       endDate.setDate(endDate.getDate() + 1);
     }
 
-    const endDateString = endDate.toISOString().split("T")[0];
+    const endDateString = formatDateLocal(endDate);
     const url = "https://api.open-meteo.com/v1/forecast";
     const response = await fetch(
       url +
         "?" +
         new URLSearchParams({
-          latitude: "43.038902",
-          longitude: "-87.906471",
+          latitude: locationData.lat.toString(),
+          longitude: locationData.lon.toString(),
           hourly: [
             "temperature_2m",
+            "wet_bulb_temperature_2m",
+            "shortwave_radiation",
             "relative_humidity_2m",
             "cloud_cover",
             "wind_speed_10m",
@@ -646,6 +715,8 @@ export async function fetchMilwaukeeHourlyWeatherData(
       !hourly ||
       !Array.isArray(hourly.time) ||
       !Array.isArray(hourly.temperature_2m) ||
+      !Array.isArray(hourly.wet_bulb_temperature_2m) ||
+      !Array.isArray(hourly.shortwave_radiation) ||
       !Array.isArray(hourly.relative_humidity_2m) ||
       !Array.isArray(hourly.cloud_cover) ||
       !Array.isArray(hourly.wind_speed_10m)
@@ -660,17 +731,24 @@ export async function fetchMilwaukeeHourlyWeatherData(
       const hourString = timeString.slice(11, 13);
       const hour = Number(hourString);
       const tempC = hourly.temperature_2m[i];
-      const humidity = hourly.relative_humidity_2m[i];
+      const wetBulbC = hourly.wet_bulb_temperature_2m[i];
+      const shortwaveRadiation = hourly.shortwave_radiation[i];
       const cloudCover = hourly.cloud_cover[i];
       const windSpeed = hourly.wind_speed_10m[i];
       tempByHour[hour] = Math.round(celsiusToFahrenheit(tempC));
-      const wbgtC = wbgtOutdoor(tempC, humidity, cloudCover, windSpeed);
+      const wbgtC = wbgtOutdoorFromHourlyObserved(
+        tempC,
+        wetBulbC,
+        shortwaveRadiation,
+        cloudCover,
+        windSpeed,
+      );
       wbgtByHour[hour] = Math.round(celsiusToFahrenheit(wbgtC));
     }
 
     return { tempByHour, wbgtByHour };
   } catch (error) {
-    console.error("Error fetching Milwaukee hourly weather data:", error);
+    console.error("Error fetching location hourly weather data:", error);
     return null;
   }
 }
@@ -708,13 +786,10 @@ export async function generateForecast(
   const now = new Date();
   const currentHour = now.getHours();
 
-  // If location is Milwaukee, use real API data
-  if (
-    location &&
-    (location.toLowerCase().replace(/\s+/g, "") === "milwaukee,wi" ||
-      location.toLowerCase().replace(/\s+/g, "") === "milwaukee")
-  ) {
-    const realData = await fetchMilwaukeeWeather();
+  // If location has coordinates, use real API data
+  const locationData = location ? resolveLocationData(location) : undefined;
+  if (location && locationData?.lat != null && locationData?.lon != null) {
+    const realData = await fetchLocationWeather(location);
     if (realData && realData.hourlyWbgt.length >= 6) {
       // Use real hourly WBGT data
       for (let i = 0; i < 6; i++) {
@@ -735,7 +810,7 @@ export async function generateForecast(
     }
   }
 
-  // Fallback to mock data for Milwaukee if API fails, or use mock data for other locations
+  // Fallback to mock data when API data is unavailable
   if (location) {
     const wbgt = getLocationWBGTPattern(location, currentHour);
     forecast.push({

@@ -27,7 +27,7 @@ import {
   getMockWeatherData,
   getWorkRestCycle,
   generateSchedule,
-  fetchMilwaukeeHourlyWeatherData,
+  fetchLocationHourlyWeatherData,
   CLOTHING_ADJUSTMENTS,
   WORKLOAD_ADJUSTMENTS,
   type ScheduleBlock,
@@ -184,17 +184,13 @@ export function Schedule({ navigation }: { navigation: any }) {
           setWeatherData(todayWeather);
           let hourlyTempsByHour: Record<number, number> | undefined;
           let hourlyWbgtByHour: Record<number, number> | undefined;
-          if (
-            todayData.location.toLowerCase().replace(/\s+/g, "") ===
-            "milwaukee,wi"
-          ) {
-            const hourlyData = await fetchMilwaukeeHourlyWeatherData(
-              todayData.shiftStart,
-              todayData.shiftEnd,
-            );
-            hourlyTempsByHour = hourlyData?.tempByHour;
-            hourlyWbgtByHour = hourlyData?.wbgtByHour;
-          }
+          const hourlyData = await fetchLocationHourlyWeatherData(
+            todayData.location,
+            todayData.shiftStart,
+            todayData.shiftEnd,
+          );
+          hourlyTempsByHour = hourlyData?.tempByHour;
+          hourlyWbgtByHour = hourlyData?.wbgtByHour;
           const todaySchedule = generateSchedule(
             todayData.shiftStart,
             todayData.shiftEnd,
@@ -230,18 +226,14 @@ export function Schedule({ navigation }: { navigation: any }) {
           if (dayWeather) {
             let dayHourlyTempsByHour: Record<number, number> | undefined;
             let dayHourlyWbgtByHour: Record<number, number> | undefined;
-            if (
-              dayData.location.toLowerCase().replace(/\s+/g, "") ===
-              "milwaukee,wi"
-            ) {
-              const hourlyData = await fetchMilwaukeeHourlyWeatherData(
-                dayData.shiftStart,
-                dayData.shiftEnd,
-                date,
-              );
-              dayHourlyTempsByHour = hourlyData?.tempByHour;
-              dayHourlyWbgtByHour = hourlyData?.wbgtByHour;
-            }
+            const hourlyData = await fetchLocationHourlyWeatherData(
+              dayData.location,
+              dayData.shiftStart,
+              dayData.shiftEnd,
+              date,
+            );
+            dayHourlyTempsByHour = hourlyData?.tempByHour;
+            dayHourlyWbgtByHour = hourlyData?.wbgtByHour;
             const daySchedule = generateSchedule(
               dayData.shiftStart,
               dayData.shiftEnd,
